@@ -84,7 +84,7 @@ export async function startSession(number, chatId, bot) {
         });
       }
 
-      // أمر استرجاع وسائط (vv) لأي شخص
+      // أمر استرجاع وسائط (vv)
       else if (text.toLowerCase() === "vv") {
         const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
         if (!contextInfo?.quotedMessage) {
@@ -140,7 +140,7 @@ export async function startSession(number, chatId, bot) {
         }
       }
 
-      // أمر البحث عن صورة - img كلمة
+      // أمر البحث عن صورة
       else if (text.toLowerCase().startsWith("img ")) {
         const query = text.slice(4).trim();
         if (!query) {
@@ -153,7 +153,7 @@ export async function startSession(number, chatId, bot) {
         try {
           const res = await axios.get(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
             headers: {
-              Authorization: '9vySYMFQtn9OjUO2jHt7CQ45Uwfw4fWyE3UcLouC4kb1oqc8Da8cNNHy' // استبدل هذا بمفتاح Pexels API الخاص بك
+              Authorization: '9vySYMFQtn9OjUO2jHt7CQ45Uwfw4fWyE3UcLouC4kb1oqc8Da8cNNHy'
             }
           });
 
@@ -173,9 +173,60 @@ export async function startSession(number, chatId, bot) {
         }
       }
 
-    } catch (error) {
-      console.error("خطأ في الأوامر:", error);
-      await sock.sendMessage(sender, { text: "❌ حدث خطأ أثناء تنفيذ الأمر." }, { quoted: msg });
+...
+// أمر تحميل فيديو من يوتيوب
+else if (text.toLowerCase().startsWith("video ")) {
+  const query = text.slice(6).trim();
+  if (!query) {
+    await sock.sendMessage(sender, { text: "❗️ اكتب كلمة بعد الأمر مثل: video قطط مضحكة" });
+    return;
+  }
+
+  await sock.sendMessage(sender, { text: `🔍 جاري البحث عن فيديو لـ: ${query} ...` });
+
+  try {
+    const ytSearch = await axios.get(`https://ytapi.p.rapidapi.com/search?query=${encodeURIComponent(query)}`, {
+      headers: {
+        "X-RapidAPI-Key": "8f770b32eamsh77f6cde7cef6374p15c016jsnf9edab9e6aed", // ← مفتاحك هنا
+        "X-RapidAPI-Host": "ytapi.p.rapidapi.com"
+      }
+    });
+
+    const result = ytSearch.data.results?.[0];
+    if (!result || !result.url) {
+      await sock.sendMessage(sender, { text: "❌ لم يتم العثور على نتائج." });
+      return;
     }
-  });
+
+    const videoUrl = encodeURIComponent(result.url);
+
+    let data;
+    try {
+      const res1 = await axios.get(`https://apis-keith.vercel.app/download/dlmp4?url=${videoUrl}`);
+      data = res1.data;
+      if (!data?.status || !data?.result?.downloadUrl) throw new Error("API 1 فشل");
+    } catch {
+      const res2 = await axios.get(`https://apis.davidcyriltech.my.id/download/ytmp4?url=${videoUrl}`);
+      data = res2.data;
+      if (!data?.success || !data?.result?.download_url) throw new Error("كلا الـ API فشلا");
+    }
+
+    const downloadUrl = data.result.downloadUrl || data.result.download_url;
+
+    await sock.sendMessage(sender, {
+      image: { url: result.thumbnail },
+      caption: `🎬 *تم العثور على الفيديو:*\n\n📌 *العنوان:* ${result.title}\n⏱️ *المدة:* ${result.timestamp || "غير محددة"}\n🔗 *الرابط:* ${result.url}`
+    });
+
+    await sock.sendMessage(sender, {
+      video: { url: downloadUrl },
+      mimetype: "video/mp4",
+      caption: "✅ *تم تحميل الفيديو بنجاح!*"
+    });
+
+  } catch (err) {
+    console.error("Video command error:", err.message);
+    await sock.sendMessage(sender, { text: `❌ حدث خطأ أثناء تحميل الفيديو:\n${err.message}` });
+  }
 }
+...
